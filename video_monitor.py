@@ -17,7 +17,7 @@ import sys
 
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 SCRIPT_DIR = pathlib.Path(__file__).parent.resolve()
-CREDENTIALS_FILE = SCRIPT_DIR / 'video-layup-fe148307279f.json'
+CREDENTIALS_FILE = SCRIPT_DIR / 'video-layup-39cd7d31cbe3.json'
 WATCH_DIRECTORY = str(pathlib.Path(r"C:\Users\ColsonR\Videos\Screen Recordings").resolve())
 
 # Set up logging
