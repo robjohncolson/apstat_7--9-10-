@@ -145,30 +145,61 @@ class VideoHandler(FileSystemEventHandler):
             self.handle_new_video(event.src_path)
     
     def handle_new_video(self, filepath):
-        logging.info(f"New video detected: {filepath}")
-        
-        root = tk.Tk()
-        root.withdraw()
-        
-        suggested_name = os.path.basename(filepath)
-        new_name = simpledialog.askstring("Rename Video", 
-                                        "Enter new name for the video:",
-                                        initialvalue=suggested_name)
-        
-        if new_name:
-            if not new_name.lower().endswith('.mp4'):
-                new_name += '.mp4'
+        try:
+            logging.info(f"New video detected: {filepath}")
             
-            new_filepath = os.path.join(os.path.dirname(filepath), new_name)
-            os.rename(filepath, new_filepath)
-            logging.info(f"File renamed to: {new_name}")
+            # Wait for file to stabilize
+            previous_size = -1
+            current_size = os.path.getsize(filepath)
             
-            folder_id = self.suggest_folder()
-            if folder_id:
-                self.upload_to_drive(new_filepath, new_name, folder_id)
-            else:
-                logging.warning("Upload cancelled - no folder selected")
-                messagebox.showwarning("Upload Cancelled", "No folder was selected for upload")
+            progress_window = tk.Toplevel()
+            progress_window.title("Preparing Upload...")
+            progress_window.geometry("300x150")
+            
+            # Center the window
+            progress_window.geometry("+%d+%d" % (
+                progress_window.winfo_screenwidth()/2 - 150,
+                progress_window.winfo_screenheight()/2 - 75
+            ))
+            
+            label = ttk.Label(progress_window, text="Waiting for file to finish writing...")
+            label.pack(pady=10)
+            
+            while previous_size != current_size:
+                time.sleep(1)  # Wait 1 second
+                previous_size = current_size
+                current_size = os.path.getsize(filepath)
+                label.config(text=f"Waiting for file to finish writing...\nSize: {current_size/1024/1024:.1f} MB")
+                progress_window.update()
+            
+            progress_window.destroy()
+            logging.info("File size stabilized, proceeding with upload")
+            
+            # Get the folder ID if we don't have it
+            if not hasattr(self, 'folder_id') or not self.folder_id:
+                self.folder_id = self.suggest_folder()
+                if not self.folder_id:
+                    return
+            
+            file_name = os.path.basename(filepath)
+            
+            # Prompt for new filename
+            new_name = simpledialog.askstring(
+                "Rename File", 
+                "Enter new filename (or leave blank to keep current):",
+                initialvalue=file_name
+            )
+            
+            if new_name:
+                file_name = new_name if new_name.endswith('.mp4') else f"{new_name}.mp4"
+            
+            # Upload the file
+            self.upload_to_drive(filepath, file_name, self.folder_id)
+            
+        except Exception as e:
+            error_msg = f"Error processing new video: {str(e)}"
+            logging.error(error_msg)
+            messagebox.showerror("Error", error_msg)
 
     def upload_to_drive(self, filepath, filename, folder_id):
         try:
