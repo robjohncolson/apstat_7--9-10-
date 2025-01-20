@@ -16,7 +16,7 @@ import pathlib
 import sys
 
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
-WATCH_DIRECTORY = str(pathlib.Path(r"C:\Users\ColsonR\Videos\Screen Recordings").resolve())
+WATCH_DIRECTORY = str(pathlib.Path(r"C:\Users\ColsonR\Downloads\apstat\apstat_unit7\apstat_7-{9,10}").resolve())
 
 # Set up logging
 logging.basicConfig(
@@ -33,22 +33,52 @@ class VideoHandler(FileSystemEventHandler):
     def setup_drive_service(self):
         try:
             creds = Credentials.from_service_account_file(
-                'service-account.json',
+                'video-layup-fe148307279f.json',
                 scopes=['https://www.googleapis.com/auth/drive.file']
             )
             self.service = build('drive', 'v3', credentials=creds)
+            logging.info("Successfully set up Google Drive service")
+        except FileNotFoundError:
+            error_msg = "\nError: Service account credentials file not found!"
+            logging.error(error_msg)
+            print(error_msg)
+            sys.exit(1)
         except Exception as e:
-            print(f"\nError setting up Google Drive service: {str(e)}")
+            error_msg = f"\nError setting up Google Drive service: {str(e)}"
+            logging.error(error_msg)
+            print(error_msg)
             sys.exit(1)
 
     def get_drive_folders(self):
-        results = self.service.files().list(
-            q="mimeType='application/vnd.google-apps.folder'",
-            fields="files(id, name)").execute()
-        return results.get('files', [])
+        try:
+            results = self.service.files().list(
+                q="mimeType='application/vnd.google-apps.folder'",
+                fields="files(id, name)"
+            ).execute()
+            folders = results.get('files', [])
+            
+            if not folders:
+                logging.warning("No folders found in Google Drive")
+                print("Warning: No folders found in Google Drive")
+            else:
+                logging.info(f"Found {len(folders)} folders in Google Drive")
+            
+            return folders
+        except Exception as e:
+            error_msg = f"Error getting drive folders: {str(e)}"
+            logging.error(error_msg)
+            print(f"\n{error_msg}")
+            print("Please check that the service account has access to the folders")
+            return []
 
     def suggest_folder(self):
         folders = self.get_drive_folders()
+        if not folders:
+            error_msg = "No accessible folders found. Please share at least one folder with the service account."
+            logging.error(error_msg)
+            messagebox.showerror("Error", error_msg)
+            return None
+        
         working_dir = os.path.basename(WATCH_DIRECTORY)
         
         # Try to find a similar folder name
@@ -64,6 +94,7 @@ class VideoHandler(FileSystemEventHandler):
         if best_match:
             msg = f"Upload to folder '{best_match['name']}'?\nClick 'Yes' to accept or 'No' to choose another folder"
             if messagebox.askyesno("Confirm Folder", msg):
+                logging.info(f"Selected folder: {best_match['name']}")
                 return best_match['id']
         
         # Show folder selection dialog
@@ -74,9 +105,15 @@ class VideoHandler(FileSystemEventHandler):
             initialvalue=folder_names[0] if folder_names else ""
         )
         
-        for folder in folders:
-            if folder['name'] == folder_choice:
-                return folder['id']
+        if folder_choice:
+            for folder in folders:
+                if folder['name'] == folder_choice:
+                    logging.info(f"Selected folder: {folder['name']}")
+                    return folder['id']
+            
+            error_msg = f"Folder '{folder_choice}' not found"
+            logging.warning(error_msg)
+            messagebox.showwarning("Warning", error_msg)
         
         return None
 
