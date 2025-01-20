@@ -281,16 +281,21 @@ class VideoHandler(FileSystemEventHandler):
             if response and response.get('id'):
                 msg = (f"File uploaded successfully!\n"
                       f"Name: {filename}\n"
-                      f"Link: {response['webViewLink']}\n\n"
-                      f"Would you like to delete the local copy?")
+                      f"Link: {response['webViewLink']}")
                 
-                if messagebox.askyesno("Upload Complete", msg):
-                    if self.try_delete_file(filepath):
-                        logging.info("File deletion successful")
-                    else:
-                        error_msg = "Could not delete file - it may be in use. Try deleting manually later."
-                        logging.error(error_msg)
-                        messagebox.showwarning("Warning", error_msg)
+                messagebox.showinfo("Upload Complete", msg)
+                
+                # Try to move file to processed folder
+                if self.move_to_processed_folder(filepath, "Uploaded Videos"):
+                    logging.info(f"File moved to processed folder: {filename}")
+                else:
+                    error_msg = "Could not move file to processed folder - it may be in use. Will try again later."
+                    logging.warning(error_msg)
+                    messagebox.showwarning("Warning", error_msg)
+                    # Schedule another attempt in 30 seconds
+                    threading.Timer(30.0, 
+                        lambda: self.move_to_processed_folder(filepath, "Uploaded Videos")
+                    ).start()
                 
                 logging.info(f"File uploaded successfully: {filename}")
                 return response['id']
