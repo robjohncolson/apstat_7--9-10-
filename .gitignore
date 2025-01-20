@@ -2,6 +2,9 @@
 credentials.json
 service-account.json
 token.pickle
+video-layup-*.json
+*-service-account*.json
+*.key.json
 
 # Logs
 *.log
