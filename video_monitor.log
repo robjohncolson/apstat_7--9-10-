@@ -1,8 +1,0 @@
-2025-01-20 14:23:38,962 - INFO - Starting video monitor service in: C:\Users\ColsonR\Downloads\apstat\apstat_unit7\apstat_7-{9,10}
-2025-01-20 14:25:21,152 - INFO - Starting video monitor service in: C:\Users\ColsonR\Downloads\apstat\apstat_unit7\apstat_7-{9,10}
-2025-01-20 14:36:23,582 - INFO - Starting video monitor service in: C:\Users\ColsonR\Downloads\apstat\apstat_unit7\apstat_7-{9,10}
-2025-01-20 14:44:38,664 - INFO - "GET /?state=zbr0kCzTaUxQKhmHO2WY0Sdd0CwdPd&code=4/0AanRRru-3dx3mnMJ9at2CDLibAiYTEIw129cjyCXhNbrjpJ6IQdYJMQlIrhgBKfIu_Ayzg&scope=https://www.googleapis.com/auth/drive.file HTTP/1.1" 200 65
-2025-01-20 14:44:40,596 - INFO - file_cache is only supported with oauth2client<4.0.0
-2025-01-20 14:45:09,238 - INFO - Starting video monitor service in: C:\Users\ColsonR\Downloads\apstat\apstat_unit7\apstat_7-{9,10}
-2025-01-20 14:45:09,265 - INFO - file_cache is only supported with oauth2client<4.0.0
-2025-01-20 14:45:23,911 - INFO - Video monitor service stopped
