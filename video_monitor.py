@@ -15,7 +15,7 @@ from datetime import datetime
 import pathlib
 import sys
 
-SCOPES = ['https://www.googleapis.com/auth/drive.file']
+SCOPES = ['https://www.googleapis.com/auth/drive']  # Full Drive access
 SCRIPT_DIR = pathlib.Path(__file__).parent.resolve()
 CREDENTIALS_FILE = SCRIPT_DIR / 'video-layup-39cd7d31cbe3.json'
 WATCH_DIRECTORY = str(pathlib.Path(r"C:\Users\ColsonR\Videos\Screen Recordings").resolve())
@@ -37,11 +37,11 @@ class VideoHandler(FileSystemEventHandler):
             try:
                 creds = Credentials.from_service_account_file(
                     str(CREDENTIALS_FILE),
-                    scopes=['https://www.googleapis.com/auth/drive.file']
+                    scopes=SCOPES  # Using the broader scope
                 )
                 self.service = build('drive', 'v3', credentials=creds)
                 logging.info("Successfully set up Google Drive service")
-                break  # Exit the loop on success
+                break
             except FileNotFoundError:
                 error_msg = f"\nError: Service account credentials file not found at: {CREDENTIALS_FILE}"
                 logging.error(error_msg)
