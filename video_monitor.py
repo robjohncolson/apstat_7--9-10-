@@ -58,30 +58,37 @@ class VideoHandler(FileSystemEventHandler):
     def get_drive_folders(self):
         while True:
             try:
+                # First verify the service account
+                about = self.service.about().get(fields="user").execute()
+                logging.info(f"Authenticated as: {about.get('user', {}).get('emailAddress')}")
+                
                 results = self.service.files().list(
                     q="mimeType='application/vnd.google-apps.folder'",
-                    fields="files(id, name)"
+                    fields="files(id, name)",
+                    pageSize=100  # Increase page size to ensure we get all folders
                 ).execute()
                 folders = results.get('files', [])
                 
                 if not folders:
                     logging.warning("No folders found in Google Drive")
                     print("Warning: No folders found in Google Drive")
+                    email = about.get('user', {}).get('emailAddress', 'unknown')
                     if not messagebox.askretrycancel("Warning", 
-                        "No folders found. Please share a folder with the service account and click Retry."):
+                        f"No folders found. Please share a folder with {email} and click Retry."):
                         return []
-                    continue  # Try again if user clicked Retry
+                    continue
                 
                 logging.info(f"Found {len(folders)} folders in Google Drive")
+                for folder in folders:
+                    logging.info(f"Found folder: {folder['name']}")
                 return folders
                 
             except Exception as e:
                 error_msg = f"Error getting drive folders: {str(e)}"
                 logging.error(error_msg)
                 print(f"\n{error_msg}")
-                print("Please check that the service account has access to the folders")
                 if not messagebox.askretrycancel("Error", 
-                    "Failed to get Drive folders. Would you like to try again?"):
+                    "Failed to get Drive folders. Check the log file for details. Would you like to try again?"):
                     return []
 
     def suggest_folder(self):
