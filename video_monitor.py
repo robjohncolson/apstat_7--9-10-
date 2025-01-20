@@ -381,13 +381,31 @@ class VideoHandler(FileSystemEventHandler):
 def cleanup():
     logging.info("Shutting down video monitor...")
     try:
+        # Get current process ID
+        pid_file = 'video_monitor.pid'
+        
+        # Check if another instance is running
+        if os.path.exists(pid_file):
+            with open(pid_file, 'r') as f:
+                old_pid = int(f.read())
+            try:
+                # Try to terminate old process
+                os.kill(old_pid, signal.SIGTERM)
+                logging.info(f"Terminated old process: {old_pid}")
+            except ProcessLookupError:
+                pass
+            
         # Cancel any pending move operations
         for thread in threading.enumerate():
             if thread.name.startswith('move_retry_'):
                 thread.cancel()
+                
     except Exception as e:
         logging.error(f"Error during cleanup: {str(e)}")
     finally:
+        # Remove PID file
+        if os.path.exists('video_monitor.pid'):
+            os.remove('video_monitor.pid')
         logging.info("Shutdown complete")
         sys.exit(0)
 
@@ -396,6 +414,24 @@ def signal_handler(signum, frame):
     cleanup()
 
 def main():
+    # Check for existing instance
+    pid_file = 'video_monitor.pid'
+    if os.path.exists(pid_file):
+        with open(pid_file, 'r') as f:
+            old_pid = int(f.read())
+        try:
+            os.kill(old_pid, 0)  # Check if process exists
+            logging.error(f"Another instance is already running (PID: {old_pid})")
+            messagebox.showerror("Error", "Another instance of Video Monitor is already running")
+            sys.exit(1)
+        except OSError:
+            # Process not found, safe to continue
+            pass
+    
+    # Write current PID
+    with open(pid_file, 'w') as f:
+        f.write(str(os.getpid()))
+    
     # Register signal handlers
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
