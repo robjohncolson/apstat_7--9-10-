@@ -12,9 +12,10 @@ import tkinter as tk
 from tkinter import simpledialog, messagebox
 import logging
 from datetime import datetime
+import pathlib
 
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
-WATCH_DIRECTORY = r"C:\Users\ColsonR\Videos\Screen Recordings"
+WATCH_DIRECTORY = str(pathlib.Path(r"C:\Users\ColsonR\Downloads\apstat\apstat_unit7\apstat_7-{9,10}").resolve())
 
 # Set up logging
 logging.basicConfig(
@@ -143,10 +144,15 @@ class VideoHandler(FileSystemEventHandler):
             messagebox.showerror("Upload Error", error_msg)
 
 def main():
-    logging.info("Starting video monitor service")
+    watch_dir = pathlib.Path(WATCH_DIRECTORY)
+    if not watch_dir.exists():
+        print(f"Creating directory: {watch_dir}")
+        watch_dir.mkdir(parents=True, exist_ok=True)
+    
+    logging.info(f"Starting video monitor service in: {watch_dir}")
     event_handler = VideoHandler()
     observer = Observer()
-    observer.schedule(event_handler, WATCH_DIRECTORY, recursive=False)
+    observer.schedule(event_handler, str(watch_dir), recursive=False)
     observer.start()
     
     try:
