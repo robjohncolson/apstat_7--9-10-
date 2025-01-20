@@ -106,57 +106,50 @@ class VideoHandler(FileSystemEventHandler):
             messagebox.showerror("Error", error_msg)
             return None
         
-        working_dir = os.path.basename(WATCH_DIRECTORY)
-        
-        # Try to find a similar folder name
-        best_match = None
-        for folder in folders:
-            if working_dir.lower() in folder['name'].lower():
-                best_match = folder
-                break
-        
-        if not best_match:
-            best_match = folders[0]  # Use first folder as default
-        
         root = tk.Tk()
         root.withdraw()
         
-        # Create a custom dialog with timeout
+        # Create folder selection dialog
         dialog = tk.Toplevel(root)
-        dialog.title("Confirm Folder")
-        dialog.geometry("400x150")
+        dialog.title("Select Upload Folder")
+        dialog.geometry("300x400")
         
         # Center the dialog
         dialog.geometry("+%d+%d" % (
-            root.winfo_screenwidth()/2 - 200,
-            root.winfo_screenheight()/2 - 75
+            root.winfo_screenwidth()/2 - 150,
+            root.winfo_screenheight()/2 - 200
         ))
         
         result = {'value': None}
         
-        def on_yes():
-            result['value'] = True
-            dialog.destroy()
+        # Create Treeview
+        tree = ttk.Treeview(dialog, show='tree')
+        tree.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        def on_no():
-            result['value'] = False
+        # Add scrollbar
+        scrollbar = ttk.Scrollbar(dialog, orient="vertical", command=tree.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        tree.configure(yscrollcommand=scrollbar.set)
+        
+        # Populate tree with folders
+        for folder in folders:
+            tree.insert('', 'end', folder['id'], text=folder['name'])
+        
+        def on_select():
+            selected = tree.selection()
+            if selected:
+                result['value'] = selected[0]  # This will be the folder ID
             dialog.destroy()
         
         def on_timeout():
             if dialog.winfo_exists():
-                result['value'] = True  # Default to yes
+                # Select first folder as default
+                first_id = tree.get_children()[0]
+                result['value'] = first_id
                 dialog.destroy()
         
-        label = ttk.Label(dialog, 
-            text=f"Upload to folder '{best_match['name']}'?\nAutomatic selection in 5 seconds...",
-            wraplength=350)
-        label.pack(pady=20)
-        
-        btn_frame = ttk.Frame(dialog)
-        btn_frame.pack(pady=10)
-        
-        ttk.Button(btn_frame, text="Yes", command=on_yes).pack(side=tk.LEFT, padx=10)
-        ttk.Button(btn_frame, text="No", command=on_no).pack(side=tk.LEFT, padx=10)
+        # Add Select button
+        ttk.Button(dialog, text="Select", command=on_select).pack(pady=10)
         
         # Start timeout
         dialog.after(5000, on_timeout)
@@ -165,27 +158,11 @@ class VideoHandler(FileSystemEventHandler):
         dialog.grab_set()
         root.wait_window(dialog)
         
-        if result['value'] is True:
-            logging.info(f"Selected folder (with timeout): {best_match['name']}")
-            return best_match['id']
-        elif result['value'] is False:
-            # Show folder selection dialog
-            folder_names = [f"{folder['name']}" for folder in folders]
-            folder_choice = simpledialog.askstring(
-                "Select Folder", 
-                "Enter the name of the destination folder:",
-                initialvalue=folder_names[0] if folder_names else ""
-            )
-            
-            if folder_choice:
-                for folder in folders:
-                    if folder['name'] == folder_choice:
-                        logging.info(f"Selected folder: {folder['name']}")
-                        return folder['id']
-                
-                error_msg = f"Folder '{folder_choice}' not found"
-                logging.warning(error_msg)
-                messagebox.showwarning("Warning", error_msg)
+        if result['value']:
+            selected_folder = next((f for f in folders if f['id'] == result['value']), None)
+            if selected_folder:
+                logging.info(f"Selected folder: {selected_folder['name']}")
+                return result['value']
         
         return None
 
