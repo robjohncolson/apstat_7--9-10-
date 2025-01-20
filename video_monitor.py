@@ -33,45 +33,56 @@ class VideoHandler(FileSystemEventHandler):
         self.setup_drive_service()
 
     def setup_drive_service(self):
-        try:
-            creds = Credentials.from_service_account_file(
-                str(CREDENTIALS_FILE),
-                scopes=['https://www.googleapis.com/auth/drive.file']
-            )
-            self.service = build('drive', 'v3', credentials=creds)
-            logging.info("Successfully set up Google Drive service")
-        except FileNotFoundError:
-            error_msg = "\nError: Service account credentials file not found!"
-            logging.error(error_msg)
-            print(error_msg)
-            sys.exit(1)
-        except Exception as e:
-            error_msg = f"\nError setting up Google Drive service: {str(e)}"
-            logging.error(error_msg)
-            print(error_msg)
-            sys.exit(1)
+        while True:
+            try:
+                creds = Credentials.from_service_account_file(
+                    str(CREDENTIALS_FILE),
+                    scopes=['https://www.googleapis.com/auth/drive.file']
+                )
+                self.service = build('drive', 'v3', credentials=creds)
+                logging.info("Successfully set up Google Drive service")
+                break  # Exit the loop on success
+            except FileNotFoundError:
+                error_msg = f"\nError: Service account credentials file not found at: {CREDENTIALS_FILE}"
+                logging.error(error_msg)
+                print(error_msg)
+                if not messagebox.askretrycancel("Error", "Credentials file not found. Would you like to try again?"):
+                    sys.exit(1)
+            except Exception as e:
+                error_msg = f"\nError setting up Google Drive service: {str(e)}"
+                logging.error(error_msg)
+                print(error_msg)
+                if not messagebox.askretrycancel("Error", "Failed to set up Drive service. Would you like to try again?"):
+                    sys.exit(1)
 
     def get_drive_folders(self):
-        try:
-            results = self.service.files().list(
-                q="mimeType='application/vnd.google-apps.folder'",
-                fields="files(id, name)"
-            ).execute()
-            folders = results.get('files', [])
-            
-            if not folders:
-                logging.warning("No folders found in Google Drive")
-                print("Warning: No folders found in Google Drive")
-            else:
+        while True:
+            try:
+                results = self.service.files().list(
+                    q="mimeType='application/vnd.google-apps.folder'",
+                    fields="files(id, name)"
+                ).execute()
+                folders = results.get('files', [])
+                
+                if not folders:
+                    logging.warning("No folders found in Google Drive")
+                    print("Warning: No folders found in Google Drive")
+                    if not messagebox.askretrycancel("Warning", 
+                        "No folders found. Please share a folder with the service account and click Retry."):
+                        return []
+                    continue  # Try again if user clicked Retry
+                
                 logging.info(f"Found {len(folders)} folders in Google Drive")
-            
-            return folders
-        except Exception as e:
-            error_msg = f"Error getting drive folders: {str(e)}"
-            logging.error(error_msg)
-            print(f"\n{error_msg}")
-            print("Please check that the service account has access to the folders")
-            return []
+                return folders
+                
+            except Exception as e:
+                error_msg = f"Error getting drive folders: {str(e)}"
+                logging.error(error_msg)
+                print(f"\n{error_msg}")
+                print("Please check that the service account has access to the folders")
+                if not messagebox.askretrycancel("Error", 
+                    "Failed to get Drive folders. Would you like to try again?"):
+                    return []
 
     def suggest_folder(self):
         folders = self.get_drive_folders()
