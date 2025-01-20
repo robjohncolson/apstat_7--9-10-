@@ -208,7 +208,17 @@ class VideoHandler(FileSystemEventHandler):
                 fields='id, webViewLink'
             )
             
-            response = request.execute()
+            response = None
+            last_progress = 0
+            
+            while response is None:
+                status, response = request.next_chunk()
+                if status:
+                    progress = int(status.progress() * 100)
+                    # Log only at 10% increments
+                    if progress >= last_progress + 10:
+                        logging.info(f"Upload progress: {progress}%")
+                        last_progress = progress - (progress % 10)
             
             # Verify upload was successful
             if response and response.get('id'):
