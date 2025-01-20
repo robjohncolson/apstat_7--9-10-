@@ -1,6 +1,6 @@
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-from google.oauth2.credentials import Credentials
+from google.oauth2.service_account import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
@@ -13,6 +13,7 @@ from tkinter import simpledialog, messagebox
 import logging
 from datetime import datetime
 import pathlib
+import sys
 
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 WATCH_DIRECTORY = str(pathlib.Path(r"C:\Users\ColsonR\Downloads\apstat\apstat_unit7\apstat_7-{9,10}").resolve())
@@ -30,23 +31,15 @@ class VideoHandler(FileSystemEventHandler):
         self.setup_drive_service()
 
     def setup_drive_service(self):
-        creds = None
-        if os.path.exists('token.pickle'):
-            with open('token.pickle', 'rb') as token:
-                creds = pickle.load(token)
-        
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    'credentials.json', SCOPES)
-                creds = flow.run_local_server(port=0)
-            
-            with open('token.pickle', 'wb') as token:
-                pickle.dump(creds, token)
-
-        self.service = build('drive', 'v3', credentials=creds)
+        try:
+            creds = Credentials.from_service_account_file(
+                'service-account.json',
+                scopes=['https://www.googleapis.com/auth/drive.file']
+            )
+            self.service = build('drive', 'v3', credentials=creds)
+        except Exception as e:
+            print(f"\nError setting up Google Drive service: {str(e)}")
+            sys.exit(1)
 
     def get_drive_folders(self):
         results = self.service.files().list(
