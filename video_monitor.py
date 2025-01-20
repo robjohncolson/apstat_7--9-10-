@@ -16,7 +16,9 @@ import pathlib
 import sys
 
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
-WATCH_DIRECTORY = str(pathlib.Path(r"C:\Users\ColsonR\Downloads\apstat\apstat_unit7\apstat_7-{9,10}").resolve())
+SCRIPT_DIR = pathlib.Path(__file__).parent.resolve()
+CREDENTIALS_FILE = SCRIPT_DIR / 'video-layup-fe148307279f.json'
+WATCH_DIRECTORY = str(pathlib.Path(r"C:\Users\ColsonR\Videos\Screen Recordings").resolve())
 
 # Set up logging
 logging.basicConfig(
@@ -33,7 +35,7 @@ class VideoHandler(FileSystemEventHandler):
     def setup_drive_service(self):
         try:
             creds = Credentials.from_service_account_file(
-                'video-layup-fe148307279f.json',
+                str(CREDENTIALS_FILE),
                 scopes=['https://www.googleapis.com/auth/drive.file']
             )
             self.service = build('drive', 'v3', credentials=creds)
