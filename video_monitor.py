@@ -385,7 +385,6 @@ def cleanup():
         for thread in threading.enumerate():
             if thread.name.startswith('move_retry_'):
                 thread.cancel()
-        # Add any other cleanup tasks here
     except Exception as e:
         logging.error(f"Error during cleanup: {str(e)}")
     finally:
@@ -398,8 +397,8 @@ def signal_handler(signum, frame):
 
 def main():
     # Register signal handlers
-    signal.signal(signal.SIGINT, signal_handler)  # Ctrl+C
-    signal.signal(signal.SIGTERM, signal_handler)  # Termination request
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
     
     event_handler = VideoHandler()
     event_handler.handle_existing_videos()
