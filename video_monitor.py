@@ -16,7 +16,7 @@ import pathlib
 import sys
 
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
-WATCH_DIRECTORY = str(pathlib.Path(r"C:\Users\ColsonR\Downloads\apstat\apstat_unit7\apstat_7-{9,10}").resolve())
+WATCH_DIRECTORY = str(pathlib.Path(r"C:\Users\ColsonR\Videos\Screen Recordings").resolve())
 
 # Set up logging
 logging.basicConfig(

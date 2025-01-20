@@ -1,0 +1,7 @@
+# Google API credentials
+credentials.json
+service-account.json
+token.pickle
+
+# Logs
+*.log
