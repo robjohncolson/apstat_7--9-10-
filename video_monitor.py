@@ -186,6 +186,18 @@ class VideoHandler(FileSystemEventHandler):
             logging.error(error_msg)
             messagebox.showerror("Error", error_msg)
 
+    def try_delete_file(self, filepath, max_attempts=3):
+        for attempt in range(max_attempts):
+            try:
+                # Wait with increasing delay
+                time.sleep(2 * (attempt + 1))
+                os.remove(filepath)
+                logging.info(f"Local file deleted: {filepath}")
+                return True
+            except Exception as e:
+                logging.warning(f"Deletion attempt {attempt + 1} failed: {str(e)}")
+        return False
+
     def upload_to_drive(self, filepath, filename, folder_id):
         try:
             file_metadata = {
@@ -222,20 +234,18 @@ class VideoHandler(FileSystemEventHandler):
             
             # Verify upload was successful
             if response and response.get('id'):
-                # Show success message with link
                 msg = (f"File uploaded successfully!\n"
                       f"Name: {filename}\n"
                       f"Link: {response['webViewLink']}\n\n"
                       f"Would you like to delete the local copy?")
                 
                 if messagebox.askyesno("Upload Complete", msg):
-                    try:
-                        os.remove(filepath)
-                        logging.info(f"Local file deleted: {filepath}")
-                    except Exception as e:
-                        error_msg = f"Error deleting local file: {str(e)}"
+                    if self.try_delete_file(filepath):
+                        logging.info("File deletion successful")
+                    else:
+                        error_msg = "Could not delete file - it may be in use. Try deleting manually later."
                         logging.error(error_msg)
-                        messagebox.showwarning("Warning", f"Could not delete local file: {error_msg}")
+                        messagebox.showwarning("Warning", error_msg)
                 
                 logging.info(f"File uploaded successfully: {filename}")
                 return response['id']
@@ -246,16 +256,58 @@ class VideoHandler(FileSystemEventHandler):
             messagebox.showerror("Error", error_msg)
             return None
 
+    def move_to_processed_folder(self, filepath, target_folder_name):
+        try:
+            # Create processed folder with target folder name
+            processed_dir = os.path.join(os.path.dirname(filepath), target_folder_name)
+            if not os.path.exists(processed_dir):
+                os.makedirs(processed_dir)
+                logging.info(f"Created processed folder: {processed_dir}")
+            
+            # Move file to processed folder
+            filename = os.path.basename(filepath)
+            new_path = os.path.join(processed_dir, filename)
+            os.rename(filepath, new_path)
+            logging.info(f"Moved {filename} to {processed_dir}")
+            return True
+        except Exception as e:
+            logging.error(f"Error moving file to processed folder: {str(e)}")
+            return False
+
+    def handle_existing_videos(self):
+        existing_videos = [f for f in os.listdir(WATCH_DIRECTORY) 
+                          if f.lower().endswith('.mp4')]
+        
+        if not existing_videos:
+            return
+        
+        msg = f"Found {len(existing_videos)} existing videos. Would you like to upload them?"
+        if messagebox.askyesno("Existing Videos", msg):
+            for video in existing_videos:
+                filepath = os.path.join(WATCH_DIRECTORY, video)
+                self.handle_new_video(filepath)
+        else:
+            folder_name = simpledialog.askstring(
+                "Create Folder", 
+                "Enter folder name for existing videos:",
+                initialvalue="Unprocessed Videos"
+            )
+            if folder_name:
+                processed_dir = os.path.join(WATCH_DIRECTORY, folder_name)
+                if not os.path.exists(processed_dir):
+                    os.makedirs(processed_dir)
+                for video in existing_videos:
+                    old_path = os.path.join(WATCH_DIRECTORY, video)
+                    new_path = os.path.join(processed_dir, video)
+                    os.rename(old_path, new_path)
+                logging.info(f"Moved {len(existing_videos)} videos to {folder_name}")
+
 def main():
-    watch_dir = pathlib.Path(WATCH_DIRECTORY)
-    if not watch_dir.exists():
-        print(f"Creating directory: {watch_dir}")
-        watch_dir.mkdir(parents=True, exist_ok=True)
-    
-    logging.info(f"Starting video monitor service in: {watch_dir}")
     event_handler = VideoHandler()
+    event_handler.handle_existing_videos()  # Check for existing videos first
+    
     observer = Observer()
-    observer.schedule(event_handler, str(watch_dir), recursive=False)
+    observer.schedule(event_handler, WATCH_DIRECTORY, recursive=False)
     observer.start()
     
     try:
@@ -263,7 +315,6 @@ def main():
             time.sleep(1)
     except KeyboardInterrupt:
         observer.stop()
-        logging.info("Video monitor service stopped")
     observer.join()
 
 if __name__ == "__main__":
