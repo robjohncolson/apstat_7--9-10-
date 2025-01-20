@@ -14,6 +14,9 @@ import logging
 from datetime import datetime
 import pathlib
 import sys
+from tqdm import tqdm
+from tkinter import ttk
+import threading
 
 SCOPES = ['https://www.googleapis.com/auth/drive']  # Full Drive access
 SCRIPT_DIR = pathlib.Path(__file__).parent.resolve()
@@ -173,25 +176,76 @@ class VideoHandler(FileSystemEventHandler):
                 'name': filename,
                 'parents': [folder_id]
             }
-            media = MediaFileUpload(filepath, resumable=True)
             
-            file = self.service.files().create(
+            media = MediaFileUpload(
+                filepath, 
+                mimetype='video/mp4',
+                resumable=True
+            )
+            
+            # Create progress bar window
+            progress_window = tk.Toplevel()
+            progress_window.title("Uploading...")
+            progress_window.geometry("300x150")
+            
+            # Center the window
+            progress_window.geometry("+%d+%d" % (
+                progress_window.winfo_screenwidth()/2 - 150,
+                progress_window.winfo_screenheight()/2 - 75
+            ))
+            
+            label = ttk.Label(progress_window, text=f"Uploading {filename}")
+            label.pack(pady=10)
+            
+            progress_bar = ttk.Progressbar(
+                progress_window, 
+                orient="horizontal", 
+                length=200, 
+                mode="determinate"
+            )
+            progress_bar.pack(pady=20)
+            
+            # Start the upload
+            request = self.service.files().create(
                 body=file_metadata,
                 media_body=media,
-                fields='id,name,webViewLink'
-            ).execute()
+                fields='id, webViewLink'
+            )
             
-            success_msg = f"File uploaded successfully!\nName: {file.get('name')}\nLink: {file.get('webViewLink')}"
-            logging.info(f"File uploaded successfully. ID: {file.get('id')}")
+            response = None
+            while response is None:
+                status, response = request.next_chunk()
+                if status:
+                    progress_bar['value'] = int(status.progress() * 100)
+                    progress_window.update()
             
-            root = tk.Tk()
-            root.withdraw()
-            messagebox.showinfo("Upload Complete", success_msg)
+            progress_window.destroy()
+            
+            # Verify upload was successful
+            if response and response.get('id'):
+                # Show success message with link
+                msg = (f"File uploaded successfully!\n"
+                      f"Name: {filename}\n"
+                      f"Link: {response['webViewLink']}\n\n"
+                      f"Would you like to delete the local copy?")
+                
+                if messagebox.askyesno("Upload Complete", msg):
+                    try:
+                        os.remove(filepath)
+                        logging.info(f"Local file deleted: {filepath}")
+                    except Exception as e:
+                        error_msg = f"Error deleting local file: {str(e)}"
+                        logging.error(error_msg)
+                        messagebox.showwarning("Warning", f"Could not delete local file: {error_msg}")
+                
+                logging.info(f"File uploaded successfully: {filename}")
+                return response['id']
             
         except Exception as e:
             error_msg = f"Error uploading file: {str(e)}"
             logging.error(error_msg)
-            messagebox.showerror("Upload Error", error_msg)
+            messagebox.showerror("Error", error_msg)
+            return None
 
 def main():
     watch_dir = pathlib.Path(WATCH_DIRECTORY)
