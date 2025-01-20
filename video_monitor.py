@@ -17,6 +17,7 @@ import sys
 from tqdm import tqdm
 from tkinter import ttk
 import threading
+import signal
 
 SCOPES = ['https://www.googleapis.com/auth/drive']  # Full Drive access
 SCRIPT_DIR = pathlib.Path(__file__).parent.resolve()
@@ -352,9 +353,23 @@ class VideoHandler(FileSystemEventHandler):
                     os.rename(old_path, new_path)
                 logging.info(f"Moved {len(existing_videos)} videos to {folder_name}")
 
+def cleanup():
+    logging.info("Shutting down video monitor...")
+    # Add any cleanup tasks here
+    logging.info("Shutdown complete")
+    sys.exit(0)
+
+def signal_handler(signum, frame):
+    logging.info(f"Received signal {signum}")
+    cleanup()
+
 def main():
+    # Register signal handlers
+    signal.signal(signal.SIGINT, signal_handler)  # Ctrl+C
+    signal.signal(signal.SIGTERM, signal_handler)  # Termination request
+    
     event_handler = VideoHandler()
-    event_handler.handle_existing_videos()  # Check for existing videos first
+    event_handler.handle_existing_videos()
     
     observer = Observer()
     observer.schedule(event_handler, WATCH_DIRECTORY, recursive=False)
@@ -364,8 +379,14 @@ def main():
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
+        logging.info("Keyboard interrupt received")
+    except Exception as e:
+        logging.error(f"Unexpected error: {str(e)}")
+    finally:
+        logging.info("Stopping observer...")
         observer.stop()
-    observer.join()
+        observer.join()
+        cleanup()
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main() 
