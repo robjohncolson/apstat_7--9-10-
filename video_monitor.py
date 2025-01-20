@@ -23,6 +23,9 @@ SCOPES = ['https://www.googleapis.com/auth/drive']  # Full Drive access
 SCRIPT_DIR = pathlib.Path(__file__).parent.resolve()
 CREDENTIALS_FILE = SCRIPT_DIR / 'video-layup-39cd7d31cbe3.json'
 WATCH_DIRECTORY = str(pathlib.Path(r"C:\Users\ColsonR\Videos\Screen Recordings").resolve())
+RETRY_ATTEMPTS = 3
+MOVE_RETRY_DELAY = 30  # seconds
+UPLOAD_CHUNK_SIZE = 256 * 1024  # 256KB
 
 # Set up logging
 logging.basicConfig(
@@ -309,18 +312,40 @@ class VideoHandler(FileSystemEventHandler):
 
     def move_to_processed_folder(self, filepath, target_folder_name):
         try:
+            import win32file
+            import win32con
+            import pywintypes
+            
             # Create processed folder with target folder name
             processed_dir = os.path.join(os.path.dirname(filepath), target_folder_name)
             if not os.path.exists(processed_dir):
                 os.makedirs(processed_dir)
                 logging.info(f"Created processed folder: {processed_dir}")
             
-            # Move file to processed folder
+            # Move file to processed folder using Windows API
             filename = os.path.basename(filepath)
             new_path = os.path.join(processed_dir, filename)
-            os.rename(filepath, new_path)
+            
+            # Try to unlock the file first
+            try:
+                handle = win32file.CreateFile(
+                    filepath,
+                    win32con.GENERIC_WRITE,
+                    0,  # No sharing
+                    None,
+                    win32con.OPEN_EXISTING,
+                    win32con.FILE_ATTRIBUTE_NORMAL,
+                    None
+                )
+                win32file.CloseHandle(handle)
+            except pywintypes.error:
+                logging.warning("Could not unlock file, will try moving anyway")
+            
+            # Try the move
+            win32file.MoveFile(filepath, new_path)
             logging.info(f"Moved {filename} to {processed_dir}")
             return True
+            
         except Exception as e:
             logging.error(f"Error moving file to processed folder: {str(e)}")
             return False
@@ -355,9 +380,17 @@ class VideoHandler(FileSystemEventHandler):
 
 def cleanup():
     logging.info("Shutting down video monitor...")
-    # Add any cleanup tasks here
-    logging.info("Shutdown complete")
-    sys.exit(0)
+    try:
+        # Cancel any pending move operations
+        for thread in threading.enumerate():
+            if thread.name.startswith('move_retry_'):
+                thread.cancel()
+        # Add any other cleanup tasks here
+    except Exception as e:
+        logging.error(f"Error during cleanup: {str(e)}")
+    finally:
+        logging.info("Shutdown complete")
+        sys.exit(0)
 
 def signal_handler(signum, frame):
     logging.info(f"Received signal {signum}")
