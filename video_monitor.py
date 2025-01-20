@@ -111,32 +111,77 @@ class VideoHandler(FileSystemEventHandler):
                 best_match = folder
                 break
         
+        if not best_match:
+            best_match = folders[0]  # Use first folder as default
+        
         root = tk.Tk()
         root.withdraw()
         
-        if best_match:
-            msg = f"Upload to folder '{best_match['name']}'?\nClick 'Yes' to accept or 'No' to choose another folder"
-            if messagebox.askyesno("Confirm Folder", msg):
-                logging.info(f"Selected folder: {best_match['name']}")
-                return best_match['id']
+        # Create a custom dialog with timeout
+        dialog = tk.Toplevel(root)
+        dialog.title("Confirm Folder")
+        dialog.geometry("400x150")
         
-        # Show folder selection dialog
-        folder_names = [f"{folder['name']}" for folder in folders]
-        folder_choice = simpledialog.askstring(
-            "Select Folder", 
-            "Enter the name of the destination folder:",
-            initialvalue=folder_names[0] if folder_names else ""
-        )
+        # Center the dialog
+        dialog.geometry("+%d+%d" % (
+            root.winfo_screenwidth()/2 - 200,
+            root.winfo_screenheight()/2 - 75
+        ))
         
-        if folder_choice:
-            for folder in folders:
-                if folder['name'] == folder_choice:
-                    logging.info(f"Selected folder: {folder['name']}")
-                    return folder['id']
+        result = {'value': None}
+        
+        def on_yes():
+            result['value'] = True
+            dialog.destroy()
+        
+        def on_no():
+            result['value'] = False
+            dialog.destroy()
+        
+        def on_timeout():
+            if dialog.winfo_exists():
+                result['value'] = True  # Default to yes
+                dialog.destroy()
+        
+        label = ttk.Label(dialog, 
+            text=f"Upload to folder '{best_match['name']}'?\nAutomatic selection in 5 seconds...",
+            wraplength=350)
+        label.pack(pady=20)
+        
+        btn_frame = ttk.Frame(dialog)
+        btn_frame.pack(pady=10)
+        
+        ttk.Button(btn_frame, text="Yes", command=on_yes).pack(side=tk.LEFT, padx=10)
+        ttk.Button(btn_frame, text="No", command=on_no).pack(side=tk.LEFT, padx=10)
+        
+        # Start timeout
+        dialog.after(5000, on_timeout)
+        
+        dialog.transient(root)
+        dialog.grab_set()
+        root.wait_window(dialog)
+        
+        if result['value'] is True:
+            logging.info(f"Selected folder (with timeout): {best_match['name']}")
+            return best_match['id']
+        elif result['value'] is False:
+            # Show folder selection dialog
+            folder_names = [f"{folder['name']}" for folder in folders]
+            folder_choice = simpledialog.askstring(
+                "Select Folder", 
+                "Enter the name of the destination folder:",
+                initialvalue=folder_names[0] if folder_names else ""
+            )
             
-            error_msg = f"Folder '{folder_choice}' not found"
-            logging.warning(error_msg)
-            messagebox.showwarning("Warning", error_msg)
+            if folder_choice:
+                for folder in folders:
+                    if folder['name'] == folder_choice:
+                        logging.info(f"Selected folder: {folder['name']}")
+                        return folder['id']
+                
+                error_msg = f"Folder '{folder_choice}' not found"
+                logging.warning(error_msg)
+                messagebox.showwarning("Warning", error_msg)
         
         return None
 
