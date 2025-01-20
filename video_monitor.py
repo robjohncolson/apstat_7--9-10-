@@ -152,27 +152,12 @@ class VideoHandler(FileSystemEventHandler):
             previous_size = -1
             current_size = os.path.getsize(filepath)
             
-            progress_window = tk.Toplevel()
-            progress_window.title("Preparing Upload...")
-            progress_window.geometry("300x150")
-            
-            # Center the window
-            progress_window.geometry("+%d+%d" % (
-                progress_window.winfo_screenwidth()/2 - 150,
-                progress_window.winfo_screenheight()/2 - 75
-            ))
-            
-            label = ttk.Label(progress_window, text="Waiting for file to finish writing...")
-            label.pack(pady=10)
-            
             while previous_size != current_size:
                 time.sleep(1)  # Wait 1 second
                 previous_size = current_size
                 current_size = os.path.getsize(filepath)
-                label.config(text=f"Waiting for file to finish writing...\nSize: {current_size/1024/1024:.1f} MB")
-                progress_window.update()
+                logging.info(f"Waiting for file to finish writing: {current_size/1024/1024:.1f} MB")
             
-            progress_window.destroy()
             logging.info("File size stabilized, proceeding with upload")
             
             # Get the folder ID if we don't have it
@@ -214,27 +199,7 @@ class VideoHandler(FileSystemEventHandler):
                 resumable=True
             )
             
-            # Create progress bar window
-            progress_window = tk.Toplevel()
-            progress_window.title("Uploading...")
-            progress_window.geometry("300x150")
-            
-            # Center the window
-            progress_window.geometry("+%d+%d" % (
-                progress_window.winfo_screenwidth()/2 - 150,
-                progress_window.winfo_screenheight()/2 - 75
-            ))
-            
-            label = ttk.Label(progress_window, text=f"Uploading {filename}")
-            label.pack(pady=10)
-            
-            progress_bar = ttk.Progressbar(
-                progress_window, 
-                orient="horizontal", 
-                length=200, 
-                mode="determinate"
-            )
-            progress_bar.pack(pady=20)
+            logging.info(f"Starting upload of {filename}")
             
             # Start the upload
             request = self.service.files().create(
@@ -243,15 +208,7 @@ class VideoHandler(FileSystemEventHandler):
                 fields='id, webViewLink'
             )
             
-            response = None
-            while response is None:
-                status, response = request.next_chunk()
-                if status:
-                    progress_bar['value'] = int(status.progress() * 100)
-                    progress_window.update()
-                    label.config(text=f"Uploading {filename}: {int(status.progress() * 100)}%")
-            
-            progress_window.destroy()
+            response = request.execute()
             
             # Verify upload was successful
             if response and response.get('id'):
@@ -274,8 +231,6 @@ class VideoHandler(FileSystemEventHandler):
                 return response['id']
             
         except Exception as e:
-            if 'progress_window' in locals():
-                progress_window.destroy()
             error_msg = f"Error uploading file: {str(e)}"
             logging.error(error_msg)
             messagebox.showerror("Error", error_msg)
