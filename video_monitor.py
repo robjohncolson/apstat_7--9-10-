@@ -218,6 +218,7 @@ class VideoHandler(FileSystemEventHandler):
                 if status:
                     progress_bar['value'] = int(status.progress() * 100)
                     progress_window.update()
+                    label.config(text=f"Uploading {filename}: {int(status.progress() * 100)}%")
             
             progress_window.destroy()
             
@@ -242,6 +243,8 @@ class VideoHandler(FileSystemEventHandler):
                 return response['id']
             
         except Exception as e:
+            if 'progress_window' in locals():
+                progress_window.destroy()
             error_msg = f"Error uploading file: {str(e)}"
             logging.error(error_msg)
             messagebox.showerror("Error", error_msg)
