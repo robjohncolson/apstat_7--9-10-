@@ -242,8 +242,7 @@ class VideoHandler(FileSystemEventHandler):
             request = self.service.files().create(
                 body=file_metadata,
                 media_body=media,
-                fields='id, webViewLink',
-                timeout=30
+                fields='id, webViewLink'
             )
             
             response = None
@@ -251,7 +250,7 @@ class VideoHandler(FileSystemEventHandler):
             
             while response is None:
                 try:
-                    status, response = request.next_chunk()
+                    status, response = request.next_chunk(timeout=30)
                     if status:
                         progress = int(status.progress() * 100)
                         if progress >= last_progress + 10:
