@@ -41,7 +41,6 @@ logging.basicConfig(
 
 httplib2.RETRIES = 3
 ssl_context = ssl.create_default_context()
-ssl_context.set_ciphers('DEFAULT@SECLEVEL=1')
 ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
 
 class VideoHandler(FileSystemEventHandler):
@@ -235,7 +234,6 @@ class VideoHandler(FileSystemEventHandler):
     def upload_to_drive(self, filepath, filename, folder_id):
         # Configure SSL context
         ssl_context = ssl.create_default_context()
-        ssl_context.options |= ssl.OP_NO_SSLv2 | ssl.OP_NO_SSLv3 | ssl.OP_NO_TLSv1 | ssl.OP_NO_TLSv1_1
         ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
         
         @retry(
@@ -289,15 +287,17 @@ class VideoHandler(FileSystemEventHandler):
                 'parents': [folder_id]
             }
             
-            media = MediaFileUpload(
-                filepath,
-                mimetype='video/mp4',
-                resumable=True,
-                chunk_size=1024 * 1024  # Corrected parameter name
-            )
-            
-            logging.info(f"Starting upload of {filename}")
-            response = upload_with_retry(file_metadata, media)
+            # Create media object with context manager
+            with open(filepath, 'rb') as file_handle:
+                media = MediaFileUpload(
+                    file_handle,
+                    mimetype='video/mp4',
+                    resumable=True,
+                    chunk_size=1024 * 1024
+                )
+                
+                logging.info(f"Starting upload of {filename}")
+                response = upload_with_retry(file_metadata, media)
             
             if response and response.get('id'):
                 msg = (f"File uploaded successfully!\n"
