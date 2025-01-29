@@ -232,13 +232,9 @@ class VideoHandler(FileSystemEventHandler):
         return False
 
     def upload_to_drive(self, filepath, filename, folder_id):
-        # Configure SSL context
-        ssl_context = ssl.create_default_context()
-        ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
-        
         @retry(
-            stop=stop_after_attempt(5),  # Increased from 3 to 5
-            wait=wait_exponential(multiplier=2, min=4, max=60),  # Longer waits
+            stop=stop_after_attempt(5),
+            wait=wait_exponential(multiplier=2, min=4, max=60),
             retry=retry_if_exception_type((
                 ssl.SSLError, 
                 socket.error,
@@ -247,13 +243,6 @@ class VideoHandler(FileSystemEventHandler):
             ))
         )
         def upload_with_retry(file_metadata, media):
-            # Refresh credentials if needed
-            if self.service._http.credentials.expired:
-                self.service._http.credentials.refresh(Request())
-            
-            # Use smaller chunks for more reliable transfer
-            media.chunk_size = 1024 * 1024  # Corrected attribute name
-            
             request = self.service.files().create(
                 body=file_metadata,
                 media_body=media,
@@ -273,8 +262,6 @@ class VideoHandler(FileSystemEventHandler):
                             last_progress = progress - (progress % 10)
                 except ssl.SSLError as e:
                     logging.warning(f"SSL Error during upload: {str(e)}")
-                    # Force credential refresh on SSL error
-                    self.service._http.credentials.refresh(Request())
                     raise
                 except Exception as e:
                     logging.warning(f"Upload chunk error: {str(e)}")
@@ -287,37 +274,30 @@ class VideoHandler(FileSystemEventHandler):
                 'parents': [folder_id]
             }
             
-            # Create media object with context manager
-            with open(filepath, 'rb') as file_handle:
-                media = MediaFileUpload(
-                    file_handle,
-                    mimetype='video/mp4',
-                    resumable=True,
-                    chunk_size=1024 * 1024
-                )
-                
-                logging.info(f"Starting upload of {filename}")
-                response = upload_with_retry(file_metadata, media)
+            # Create media object without setting chunk_size
+            media = MediaFileUpload(
+                filepath,
+                mimetype='video/mp4',
+                resumable=True
+            )
+            
+            logging.info(f"Starting upload of {filename}")
+            response = upload_with_retry(file_metadata, media)
             
             if response and response.get('id'):
-                msg = (f"File uploaded successfully!\n"
-                      f"Name: {filename}\n"
+                msg = (f"File uploaded successfully: {filename}\n"
                       f"Link: {response['webViewLink']}")
+                logging.info(msg)
                 
-                messagebox.showinfo("Upload Complete", msg)
-                
-                # Try to move file to processed folder
                 if self.move_to_processed_folder(filepath, "Uploaded Videos"):
                     logging.info(f"File moved to processed folder: {filename}")
                 else:
                     error_msg = "Could not move file to processed folder - it may be in use. Will try again later."
                     logging.warning(error_msg)
-                    # Schedule another attempt in 30 seconds
                     threading.Timer(30.0, 
                         lambda: self.move_to_processed_folder(filepath, "Uploaded Videos")
                     ).start()
                 
-                logging.info(f"File uploaded successfully: {filename}")
                 return response['id']
             
         except Exception as e:
