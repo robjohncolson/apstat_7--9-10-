@@ -21,6 +21,8 @@ import signal
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 import ssl
 import httplib2
+import socket
+from urllib3.util.retry import Retry
 
 SCOPES = ['https://www.googleapis.com/auth/drive']  # Full Drive access
 SCRIPT_DIR = pathlib.Path(__file__).parent.resolve()
@@ -231,12 +233,29 @@ class VideoHandler(FileSystemEventHandler):
         return False
 
     def upload_to_drive(self, filepath, filename, folder_id):
+        # Configure SSL context
+        ssl_context = ssl.create_default_context()
+        ssl_context.options |= ssl.OP_NO_SSLv2 | ssl.OP_NO_SSLv3 | ssl.OP_NO_TLSv1 | ssl.OP_NO_TLSv1_1
+        ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
+        
         @retry(
-            stop=stop_after_attempt(3),
-            wait=wait_exponential(multiplier=1, min=4, max=10),
-            retry=retry_if_exception_type((ssl.SSLError, IOError))
+            stop=stop_after_attempt(5),  # Increased from 3 to 5
+            wait=wait_exponential(multiplier=2, min=4, max=60),  # Longer waits
+            retry=retry_if_exception_type((
+                ssl.SSLError, 
+                socket.error,
+                IOError,
+                ConnectionError
+            ))
         )
         def upload_with_retry(file_metadata, media):
+            # Refresh credentials if needed
+            if self.service._http.credentials.expired:
+                self.service._http.credentials.refresh(Request())
+            
+            # Use smaller chunks for more reliable transfer
+            media.chunksize = 1024 * 1024  # 1MB chunks
+            
             request = self.service.files().create(
                 body=file_metadata,
                 media_body=media,
@@ -256,6 +275,11 @@ class VideoHandler(FileSystemEventHandler):
                             last_progress = progress - (progress % 10)
                 except ssl.SSLError as e:
                     logging.warning(f"SSL Error during upload: {str(e)}")
+                    # Force credential refresh on SSL error
+                    self.service._http.credentials.refresh(Request())
+                    raise
+                except Exception as e:
+                    logging.warning(f"Upload chunk error: {str(e)}")
                     raise
             return response
 
@@ -269,7 +293,7 @@ class VideoHandler(FileSystemEventHandler):
                 filepath,
                 mimetype='video/mp4',
                 resumable=True,
-                chunksize=256 * 1024  # 256KB chunks
+                chunksize=1024 * 1024  # 1MB chunks
             )
             
             logging.info(f"Starting upload of {filename}")
