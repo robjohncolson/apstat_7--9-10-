@@ -250,7 +250,7 @@ class VideoHandler(FileSystemEventHandler):
             
             while response is None:
                 try:
-                    status, response = request.next_chunk(timeout=30)
+                    status, response = request.next_chunk()
                     if status:
                         progress = int(status.progress() * 100)
                         if progress >= last_progress + 10:
