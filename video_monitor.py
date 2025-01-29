@@ -254,7 +254,7 @@ class VideoHandler(FileSystemEventHandler):
                 self.service._http.credentials.refresh(Request())
             
             # Use smaller chunks for more reliable transfer
-            media.chunksize = 1024 * 1024  # 1MB chunks
+            media.chunk_size = 1024 * 1024  # Corrected attribute name
             
             request = self.service.files().create(
                 body=file_metadata,
@@ -293,7 +293,7 @@ class VideoHandler(FileSystemEventHandler):
                 filepath,
                 mimetype='video/mp4',
                 resumable=True,
-                chunksize=1024 * 1024  # 1MB chunks
+                chunk_size=1024 * 1024  # Corrected parameter name
             )
             
             logging.info(f"Starting upload of {filename}")
