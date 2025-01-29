@@ -18,6 +18,9 @@ from tqdm import tqdm
 from tkinter import ttk
 import threading
 import signal
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+import ssl
+import httplib2
 
 SCOPES = ['https://www.googleapis.com/auth/drive']  # Full Drive access
 SCRIPT_DIR = pathlib.Path(__file__).parent.resolve()
@@ -33,6 +36,11 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
+
+httplib2.RETRIES = 3
+ssl_context = ssl.create_default_context()
+ssl_context.set_ciphers('DEFAULT@SECLEVEL=1')
+ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
 
 class VideoHandler(FileSystemEventHandler):
     def __init__(self):
@@ -225,6 +233,35 @@ class VideoHandler(FileSystemEventHandler):
         return False
 
     def upload_to_drive(self, filepath, filename, folder_id):
+        @retry(
+            stop=stop_after_attempt(3),
+            wait=wait_exponential(multiplier=1, min=4, max=10),
+            retry=retry_if_exception_type((ssl.SSLError, IOError))
+        )
+        def upload_with_retry(file_metadata, media):
+            request = self.service.files().create(
+                body=file_metadata,
+                media_body=media,
+                fields='id, webViewLink',
+                timeout=30
+            )
+            
+            response = None
+            last_progress = 0
+            
+            while response is None:
+                try:
+                    status, response = request.next_chunk()
+                    if status:
+                        progress = int(status.progress() * 100)
+                        if progress >= last_progress + 10:
+                            logging.info(f"Upload progress: {progress}%")
+                            last_progress = progress - (progress % 10)
+                except ssl.SSLError as e:
+                    logging.warning(f"SSL Error during upload: {str(e)}")
+                    raise
+            return response
+
         try:
             file_metadata = {
                 'name': filename,
@@ -232,33 +269,15 @@ class VideoHandler(FileSystemEventHandler):
             }
             
             media = MediaFileUpload(
-                filepath, 
+                filepath,
                 mimetype='video/mp4',
-                resumable=True
+                resumable=True,
+                chunksize=256 * 1024  # 256KB chunks
             )
             
             logging.info(f"Starting upload of {filename}")
+            response = upload_with_retry(file_metadata, media)
             
-            # Start the upload
-            request = self.service.files().create(
-                body=file_metadata,
-                media_body=media,
-                fields='id, webViewLink'
-            )
-            
-            response = None
-            last_progress = 0
-            
-            while response is None:
-                status, response = request.next_chunk()
-                if status:
-                    progress = int(status.progress() * 100)
-                    # Log only at 10% increments
-                    if progress >= last_progress + 10:
-                        logging.info(f"Upload progress: {progress}%")
-                        last_progress = progress - (progress % 10)
-            
-            # Verify upload was successful
             if response and response.get('id'):
                 msg = (f"File uploaded successfully!\n"
                       f"Name: {filename}\n"
