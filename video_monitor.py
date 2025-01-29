@@ -290,7 +290,6 @@ class VideoHandler(FileSystemEventHandler):
                 else:
                     error_msg = "Could not move file to processed folder - it may be in use. Will try again later."
                     logging.warning(error_msg)
-                    messagebox.showwarning("Warning", error_msg)
                     # Schedule another attempt in 30 seconds
                     threading.Timer(30.0, 
                         lambda: self.move_to_processed_folder(filepath, "Uploaded Videos")
@@ -302,7 +301,6 @@ class VideoHandler(FileSystemEventHandler):
         except Exception as e:
             error_msg = f"Error uploading file: {str(e)}"
             logging.error(error_msg)
-            messagebox.showerror("Error", error_msg)
             return None
 
     def move_to_processed_folder(self, filepath, target_folder_name):
