@@ -88,10 +88,8 @@ class VideoHandler(FileSystemEventHandler):
                     logging.warning("No folders found in Google Drive")
                     print("Warning: No folders found in Google Drive")
                     email = about.get('user', {}).get('emailAddress', 'unknown')
-                    if not messagebox.askretrycancel("Warning", 
-                        f"No folders found. Please share a folder with {email} and click Retry."):
-                        return []
-                    continue
+                    logging.error(f"No folders found. Please share a folder with {email}")
+                    return []
                 
                 logging.info(f"Found {len(folders)} folders in Google Drive")
                 for folder in folders:
